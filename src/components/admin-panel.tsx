@@ -32,9 +32,45 @@ export default function AdminPanel() {
     }
   }
 
-  // ... (keep handleSave and handleRerun as is)
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedProfile) return
 
-  // ... (render logic)
+    setLoading(true)
+    try {
+      await updateProfile(selectedProfile.email, {
+        firstname: selectedProfile.firstname,
+        lastname: selectedProfile.lastname,
+        city: selectedProfile.city,
+        status: selectedProfile.status,
+        linkedin_url: selectedProfile.linkedin_url,
+        bio: selectedProfile.bio,
+      })
+      setMessage('Profile updated successfully.')
+    } catch (error) {
+      setMessage('Error updating profile.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRerun = async () => {
+    if (!selectedProfile) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/rerun', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: selectedProfile.email }),
+      })
+      if (res.ok) setMessage('Re-run triggered.')
+      else setMessage('Failed to trigger re-run.')
+    } catch (error) {
+      setMessage('Error triggering re-run.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-8">
