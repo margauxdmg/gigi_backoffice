@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { TriageSection } from '@/components/triage-section'
-import { useToast } from '@/components/ui/use-toast' // Assuming shadcn toast, but I didn't install toast. I'll use simple alert or state.
 
 export default function AdminPanel() {
   const [query, setQuery] = useState('')
