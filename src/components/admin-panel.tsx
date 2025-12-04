@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea' // Need to add textarea if not present, defaulting to Input for bio for now or generic
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TriageSection } from '@/components/triage-section'
 import { useToast } from '@/components/ui/use-toast' // Assuming shadcn toast, but I didn't install toast. I'll use simple alert or state.
 
