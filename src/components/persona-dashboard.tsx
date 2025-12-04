@@ -7,7 +7,9 @@ import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d']
 
-export function PersonaDashboard({ data, rawData }: { data: NyneProfile[], rawData?: any[] }) {
+export function PersonaDashboard(
+  { data, rawData }: { data: NyneProfile[]; rawData?: any[] | null }
+) {
   
   const cityData = useMemo(() => {
     const counts: Record<string, number> = {}
