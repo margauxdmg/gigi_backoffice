@@ -371,9 +371,7 @@ export default async function OpsDashboardPage() {
                   <TableCell className="text-center font-medium text-green-700">
                     {row.fully_check}
                   </TableCell>
-                  <TableCell className="text-center font-medium text-green-500">
-                    {row.fully_opt}
-                  </TableCell>
+                  {/* Removed fully_opt cell to match headers */}
                   <TableCell className="text-center font-medium text-red-600">
                     {row.not_resolved}
                   </TableCell>

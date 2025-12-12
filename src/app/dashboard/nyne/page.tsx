@@ -34,9 +34,9 @@ export default async function DashboardNynePage() {
   const { data: profiles, error: profilesError } = await supabase
     .from('nyne_profiles_enrichment')
     .select(
-      'profile_id, status, linkedin_url, firstname, lastname, city, job_title, company, bio, profile_pic, schools_attended, organizations, social_profiles, processing_seconds, batch_tag, created_on, created_at'
+      'profile_id, status, linkedin_url, firstname, lastname, city, job_title, company, bio, profile_pic, schools_attended, organizations, social_profiles, processing_seconds, batch_tag, created_on'
     )
-    .order('created_at', { ascending: false })
+    .order('created_on', { ascending: false })
 
   if (profilesError) return <div>Error loading profiles: {profilesError.message}</div>
 
