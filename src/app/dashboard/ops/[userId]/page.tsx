@@ -55,16 +55,18 @@ export default async function OpsResolvePage({
   }
 
   // 3) Fetch only this user's profiles, and only the columns needed by OpsResolveClient
-  // Only fetch 'completed' or 'failed' profiles as per requirements
   const { data: profilesData } = await supabase
     .from('nyne_profiles_enrichment')
     .select(
       'profile_id, email, status, firstname, lastname, city, linkedin_url, bio, profile_pic, job_title, company, schools_attended, organizations, social_profiles'
     )
     .in('profile_id', profileIds)
-    .in('status', ['completed', 'failed'])
 
-  const userProfiles = (profilesData || []) as NyneProfile[]
+  const rawProfiles = (profilesData || []) as NyneProfile[]
+  // Filter in JS to match exactly the main dashboard logic (case sensitive, etc.)
+  const userProfiles = rawProfiles.filter(
+    (p) => p.status === 'completed' || p.status === 'failed'
+  )
 
   return <OpsResolveClient user={user} profiles={userProfiles} />
 }
