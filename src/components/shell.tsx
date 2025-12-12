@@ -43,16 +43,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <h1 className="text-xl font-black tracking-tight">Gigi</h1>
           </div>
           <nav className="flex items-center gap-8 text-base font-medium">
-            {/* 1 - Dashboard (Ops) */} 
-            <Link href="/dashboard/ops" className={isActive('/dashboard/ops')}>Dashboard</Link>
-            {/* 2 - Manual task (Admin panel) */}
-            <Link href="/admin" className={isActive('/admin')}>Manual task</Link>
-            {/* 3 - Data quality (Quality) */}
-            <Link href="/dashboard/quality" className={isActive('/dashboard/quality')}>Data quality</Link>
-            {/* 4 - Our ICP (Persona) */}
-            <Link href="/dashboard/persona" className={isActive('/dashboard/persona')}>Our ICP</Link>
-            {/* 5 - Leaderboard */}
-            <Link href="/leaderboard" className={isActive('/leaderboard')}>Leaderboard</Link>
+            <Link href="/dashboard/nyne" className={isActive('/dashboard/nyne')}>
+              Dashboard Nyne
+            </Link>
+            <Link href="/dashboard/ops" className={isActive('/dashboard/ops')}>
+              Dashboard Ops
+            </Link>
+            <Link href="/dashboard/batches" className={isActive('/dashboard/batches')}>
+              Batches
+            </Link>
+            <Link
+              href="/dashboard/persona"
+              className={isActive('/dashboard/persona')}
+            >
+              Our ICP
+            </Link>
+            <Link href="/leaderboard" className={isActive('/leaderboard')}>
+              Leaderboard
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-4">
             <ThemeToggle />

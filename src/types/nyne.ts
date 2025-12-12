@@ -1,4 +1,5 @@
 export type NyneProfile = {
+  profile_id: string // Added this field based on user clarification
   email: string
   start_time: string | null
   end_time: string | null
@@ -7,6 +8,8 @@ export type NyneProfile = {
   firstname: string | null
   lastname: string | null
   headline: string | null
+  job_title: string | null
+  company: string | null
   bio: string | null
   city: string | null
   probability: 'high' | 'medium' | 'low' | string | null
@@ -20,6 +23,7 @@ export type NyneProfile = {
   status: string | null
   created_at: string
   updated_at: string | null
+  batch_tag?: string | null
 }
 
 export type QualityScore = {

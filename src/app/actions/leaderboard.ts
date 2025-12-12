@@ -9,7 +9,12 @@ import { LeaderboardEntry } from '@/types/leaderboard'
 // We will use a workaround or try to query 'admin_action_logs' assuming the user will create it.
 // IF it fails, we'll return mock data for the demo.
 
-export async function logAdminAction(userName: string, actionType: string, details?: string) {
+export async function logAdminAction(
+  userName: string,
+  actionType: string,
+  profileId?: string | null,
+  details?: string
+) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
   
@@ -19,7 +24,8 @@ export async function logAdminAction(userName: string, actionType: string, detai
     await supabase.from('admin_action_logs').insert({
       user_name: userName,
       action_type: actionType,
-      details: details
+      profile_id: profileId ?? null,
+      details: details,
     })
   } catch (e) {
     console.error("Failed to log action (table might be missing)", e)

@@ -71,10 +71,10 @@ export function TriageSection() {
       
       await updateTriageProfile(currentProfile.email, updates)
       
-      // Log action for leaderboard
+      // Log action for leaderboard & ops dashboard
       const userName = localStorage.getItem('admin_user') || 'Anonymous'
       // Fire and forget log action to not block UI
-      logAdminAction(userName, 'triage_fix', `Fixed missing ${activeMode}`)
+      logAdminAction(userName, 'triage_fix', currentProfile.profile_id, `Fixed missing ${activeMode}`)
       
       setStreak(s => s + 1)
       setSessionCount(c => c + 1)

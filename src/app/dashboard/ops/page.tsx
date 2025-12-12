@@ -1,141 +1,403 @@
 import { createClient } from '@/lib/supabase/server'
 import { NyneProfile } from '@/types/nyne'
-import { subHours, startOfMinute } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ProcessingTimeChart, InsertsPerMinuteChart } from '@/components/ops-charts'
-import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { formatDistanceToNow } from 'date-fns'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
-function getStatusVariant(status: string) {
-  if (status === 'failed') return 'destructive'
-  if (status === 'pending') return 'secondary'
-  if (status === 'processing') return 'default'
-  return 'outline'
+type Connection = {
+  connection_id: string
+  user_id: string
+  profile_id: string
+  created_at: string
 }
 
-export default async function OpsPage() {
+type User = {
+  user_id: string
+  email: string
+  full_name: string
+  title: string
+  profile_pic: string | null
+  created_at: string
+}
+
+type AdminActionLog = {
+  profile_id: string | null
+}
+
+export default async function OpsDashboardPage() {
   const supabase = createClient()
   
-  const twentyFourHoursAgo = subHours(new Date(), 24).toISOString()
-  
-  const { data: profiles, error } = await supabase
+  // 1. Fetch all enriched profiles
+  const { data: profiles, error: profilesError } = await supabase
     .from('nyne_profiles_enrichment')
     .select('*')
-    .gte('created_on', twentyFourHoursAgo)
-    .order('created_on', { ascending: true })
 
-  if (error) {
-    return <div>Error loading data: {error.message}</div>
+  if (profilesError) {
+    return <div>Error loading profiles: {profilesError.message}</div>
   }
-  
-  const data = profiles as NyneProfile[]
-  const total = data.length
-  const completed = data.filter(p => p.status === 'completed').length
-  const successRate = total ? (completed / total) * 100 : 0
-  
-  // Assuming failed is anything not completed and not pending/processing if those exist
-  const failed = data.filter(p => p.status !== 'completed').length 
-  const failedRate = total ? (failed / total) * 100 : 0
-  
-  const processingTimes = data
-    .map(p => p.processing_seconds)
-    .filter((s): s is number => s !== null)
-    .sort((a, b) => a - b)
-    
-  const avgProcessing = processingTimes.reduce((a, b) => a + b, 0) / (processingTimes.length || 1)
-  
-  const p50 = processingTimes[Math.floor(processingTimes.length * 0.5)] || 0
-  const p90 = processingTimes[Math.floor(processingTimes.length * 0.9)] || 0
-  const p99 = processingTimes[Math.floor(processingTimes.length * 0.99)] || 0
-  
-  // Inserts per minute
-  const insertsPerMinuteMap = new Map<string, number>()
-  data.forEach(p => {
-    if (p.created_on) {
-      const minute = startOfMinute(new Date(p.created_on)).toISOString()
-      insertsPerMinuteMap.set(minute, (insertsPerMinuteMap.get(minute) || 0) + 1)
+
+  const allProfiles = (profiles || []) as NyneProfile[]
+
+  // Consider only profiles that are DONE (completed or failed)
+  const processedProfiles = allProfiles.filter(
+    (p) => p.status === 'completed' || p.status === 'failed'
+  )
+
+  function isMissingCity(city: string | null) {
+    if (!city) return true
+    const v = city.trim().toLowerCase()
+    return !v || v === 'not specified' || v === 'not_specified' || v === 'n/a'
+  }
+
+  // New status logic pour Ops (même définition que Dashboard Nyne) :
+  // - Not_resolved  => pas de LinkedIn URL associée à cet email
+  // - Fully_resolved => LinkedIn trouvé + tous les champs requis présents
+  // - Partially_resolved => LinkedIn trouvé mais au moins un champ requis manquant
+
+  const hasLinkedin = (p: NyneProfile) => !!p.linkedin_url
+
+  const hasAllRequired = (p: NyneProfile) =>
+    !!p.profile_pic &&
+    !!p.firstname &&
+    !!p.lastname &&
+    !isMissingCity(p.city) &&
+    !!p.job_title &&
+    !!p.company &&
+    !!p.bio &&
+    !!p.schools_attended &&
+    !!p.organizations &&
+    !!p.social_profiles
+
+  const isFullyResolvedProfile = (p: NyneProfile) => hasLinkedin(p) && hasAllRequired(p)
+  const isPartiallyResolvedProfile = (p: NyneProfile) =>
+    hasLinkedin(p) && !hasAllRequired(p)
+  const isNotResolvedProfile = (p: NyneProfile) => !hasLinkedin(p)
+
+  // Global metrics pour l'onglet Ops
+  const partiallyResolvedToDo = processedProfiles.filter(isPartiallyResolvedProfile).length
+
+  // Détail des champs manquants dans les profils partiellement résolus
+  const prPartials = processedProfiles.filter(isPartiallyResolvedProfile)
+  const prMissingFullName = prPartials.filter(
+    (p) => !p.firstname || !p.lastname
+  ).length
+  const prMissingCity = prPartials.filter((p) => !p.city || isMissingCity(p.city)).length
+  const prMissingJobTitle = prPartials.filter((p) => !p.job_title).length
+  const prMissingPic = prPartials.filter((p) => !p.profile_pic).length
+  const prMissingCompany = prPartials.filter((p) => !p.company).length
+  const prMissingSchools = prPartials.filter((p) => !p.schools_attended).length
+  const prMissingSocial = prPartials.filter((p) => !p.social_profiles).length
+  const prMissingOrgs = prPartials.filter((p) => !p.organizations).length
+
+  const fullyResolved = processedProfiles.filter(isFullyResolvedProfile).length
+  const notResolved = processedProfiles.filter(isNotResolvedProfile).length
+
+  // Total profiles to proceed = partiellement résolus + non résolus
+  const totalToProceed = partiallyResolvedToDo + notResolved
+
+  // 2. Fetch users, connections and admin actions
+  const { data: usersData } = await supabase.from('users').select('*')
+  const { data: connectionsData } = await supabase.from('connections').select('*')
+  const { data: actionsData } = await supabase
+    .from('admin_action_logs')
+    .select('profile_id')
+
+  const users = (usersData || []) as User[]
+  const connections = (connectionsData || []) as Connection[]
+  const actions = (actionsData || []) as AdminActionLog[]
+
+  // Average number of profiles per user to proceed
+  const avgProfilesPerUser =
+    users.length > 0 ? Math.round(totalToProceed / users.length) : 0
+
+  // Build rows for user table
+  const rows = users.map((user) => {
+    // All profiles linked to this user (network)
+    const userConnections = connections.filter((c) => c.user_id === user.user_id)
+    const userProfileIds = new Set(userConnections.map((c) => c.profile_id))
+
+    const userProfiles = processedProfiles.filter((p) =>
+      userProfileIds.has(p.profile_id)
+    )
+
+    const userPartiallyProfiles = userProfiles.filter(isPartiallyResolvedProfile)
+    const userPartiallyCount = userPartiallyProfiles.length
+
+    // Per-user breakdown of partially_resolved by missing field
+    const uMissingPic = userPartiallyProfiles.filter((p) => !p.profile_pic).length
+    const uMissingLastname = userPartiallyProfiles.filter((p) => !p.lastname).length
+    const uMissingCity = userPartiallyProfiles.filter(
+      (p) => !p.city || isMissingCity(p.city)
+    ).length
+    const uMissingLinkedin = userPartiallyProfiles.filter(
+      (p) => !p.linkedin_url
+    ).length
+    const uMissingBio = userPartiallyProfiles.filter((p) => !p.bio).length
+
+    const userFullyOptMissingCount = 0
+
+    const userFullyCount = userProfiles.filter(isFullyResolvedProfile).length
+
+    const userNotResolvedCount = userProfiles.filter(isNotResolvedProfile).length
+
+    // Total checked: number of manual actions on this network
+    const totalChecked = actions.filter(
+      (a) => a.profile_id && userProfileIds.has(a.profile_id)
+    ).length
+
+    const totalNetwork = userProfileIds.size
+
+    return {
+      user,
+      start_onboarding: user.created_at
+        ? new Date(user.created_at).toISOString()
+        : null,
+      partially: userPartiallyCount,
+      fully_check: userFullyCount,
+      fully_opt: userFullyOptMissingCount,
+      not_resolved: userNotResolvedCount,
+      total_checked: totalChecked,
+      total_network: totalNetwork,
+      missing_pic: uMissingPic,
+      missing_lastname: uMissingLastname,
+      missing_city: uMissingCity,
+      missing_linkedin: uMissingLinkedin,
+      missing_bio: uMissingBio,
     }
   })
-  const insertsPerMinute = Array.from(insertsPerMinuteMap.entries())
-    .map(([minute, count]) => ({ minute, count }))
-    .sort((a, b) => a.minute.localeCompare(b.minute))
 
-  // Top errors (group by status where not completed)
-  const errorsMap = new Map<string, number>()
-  data.filter(p => p.status !== 'completed').forEach(p => {
-    const err = p.status || 'Unknown'
-    errorsMap.set(err, (errorsMap.get(err) || 0) + 1)
-  })
-  const topErrors = Array.from(errorsMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
+  // Sort rows – more active networks first (by total_to_proceed within their network)
+  rows.sort((a, b) => b.total_network - a.total_network)
 
   return (
      <div className="space-y-8">
-       <h2 className="text-3xl font-bold tracking-tight">Ops Dashboard</h2>
-       
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-         <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Total Profiles (24h)</CardTitle>
+      {/* Top Metrics Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-yellow-100/50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Partially_resolved to do
+            </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold">{total}</div>
+            <div className="text-3xl font-bold text-yellow-700">
+              {partiallyResolvedToDo}
+            </div>
            </CardContent>
          </Card>
-         <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+        <Card className="bg-yellow-100/50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Fully_resolved
+            </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold">{successRate.toFixed(1)}%</div>
+            <div className="text-3xl font-bold text-yellow-700">
+              {fullyResolved}
+            </div>
            </CardContent>
          </Card>
-         <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Avg Processing</CardTitle>
+        <Card className="bg-yellow-100/50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Not_resolved
+            </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold">{avgProcessing.toFixed(2)}s</div>
-             <p className="text-xs text-muted-foreground">P50: {p50}s / P90: {p90}s</p>
+            <div className="text-3xl font-bold text-red-600">
+              {notResolved}
+            </div>
            </CardContent>
          </Card>
-         <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">P99 Processing</CardTitle>
+
+        {/* Second Row */}
+        <Card className="col-start-2 bg-yellow-100/50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total profiles to proceed
+            </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold">{p99}s</div>
-           </CardContent>
-         </Card>
-       </div>
-       
-       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-         <div className="col-span-4">
-            <ProcessingTimeChart data={data.filter(d => d.processing_seconds !== null)} />
+            <div className="text-3xl font-bold text-yellow-700">
+              {totalToProceed}
          </div>
-         <Card className="col-span-3">
-             <CardHeader>
-                <CardTitle>Top Errors/Status</CardTitle>
+          </CardContent>
+        </Card>
+        <Card className="bg-yellow-100/50 border-yellow-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Avg number of profiles per user to proceed
+            </CardTitle>
              </CardHeader>
              <CardContent>
-               <ul className="space-y-4">
-                 {topErrors.map(([err, count]) => (
-                   <li key={err} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
-                     <Badge variant={getStatusVariant(err)} className="capitalize">
-                       {err}
-                     </Badge>
-                     <span className="font-mono font-medium text-muted-foreground">{count}</span>
-                   </li>
-                 ))}
-                 {topErrors.length === 0 && <li className="text-sm text-muted-foreground italic">All systems normal</li>}
-               </ul>
+            <div className="text-3xl font-bold text-yellow-700">
+              {avgProfilesPerUser}
+            </div>
              </CardContent>
          </Card>
        </div>
        
-       <InsertsPerMinuteChart data={insertsPerMinute} />
+      {/* Breakdown de Partially_resolved to do par champ manquant */}
+      <Card className="bg-yellow-50/70 border-yellow-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">
+            Partially_resolved to do – breakdown by missing field
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Missing full name</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingFullName}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing city</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingCity}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing job title</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingJobTitle}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing profile pic</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingPic}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing company</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingCompany}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing schools</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingSchools}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing social profiles</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingSocial}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Missing organizations</div>
+              <div className="text-lg font-semibold text-yellow-700">
+                {prMissingOrgs}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* User List Table */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 relative">
+          <input
+            type="text"
+            placeholder="Search users who did the onboarding"
+            className="w-full pl-10 h-12 rounded-full border border-gray-300 bg-white px-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="absolute left-4 text-gray-400">🔍</span>
+        </div>
+
+        <div className="rounded-md border bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[300px]">List of new user</TableHead>
+                <TableHead>start_onboarding</TableHead>
+                <TableHead className="text-center">
+                  partially_resolved_missing_required_fields
+                </TableHead>
+                <TableHead className="text-center">
+                  fully_resolved_to_check
+                </TableHead>
+                {/* fully_resolved_missing_optional_fields removed in simplified model */}
+                <TableHead className="text-center">not_resolved_profile</TableHead>
+                <TableHead className="text-center">total_checked</TableHead>
+                <TableHead className="text-right">total_network</TableHead>
+                <TableHead className="text-right"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.user.user_id} className="h-20">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12 border">
+                        <AvatarImage src={row.user.profile_pic || ''} />
+                        <AvatarFallback>{row.user.full_name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-bold">{row.user.full_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {row.user.title}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {row.start_onboarding ? (
+                      <span suppressHydrationWarning>
+                        {formatDistanceToNow(new Date(row.start_onboarding), {
+                          addSuffix: true,
+                        })}
+                      </span>
+                    ) : (
+                      'N/A'
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center font-medium text-yellow-700">
+                    <div>{row.partially}</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      pic {row.missing_pic} · ln {row.missing_lastname} · city{' '}
+                      {row.missing_city} · li {row.missing_linkedin} · bio{' '}
+                      {row.missing_bio}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center font-medium text-green-700">
+                    {row.fully_check}
+                  </TableCell>
+                  <TableCell className="text-center font-medium text-green-500">
+                    {row.fully_opt}
+                  </TableCell>
+                  <TableCell className="text-center font-medium text-red-600">
+                    {row.not_resolved}
+                  </TableCell>
+                  <TableCell className="text-center font-medium">
+                    {row.total_checked}
+                  </TableCell>
+                  <TableCell className="text-right font-bold">
+                    {row.total_network}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/dashboard/ops/${row.user.user_id}`}
+                      className="rounded-full border border-yellow-300 bg-yellow-100 px-4 py-1 text-xs font-semibold hover:bg-yellow-200"
+                    >
+                      Start resolving
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
      </div>
   )
 }
+
