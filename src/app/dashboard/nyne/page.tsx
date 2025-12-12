@@ -40,12 +40,13 @@ export default async function DashboardNynePage() {
 
   if (profilesError) return <div>Error loading profiles: {profilesError.message}</div>
 
-  const allProfiles = profiles as NyneProfile[]
-  // Base for percentages: only profiles that are DONE (completed or failed)
-  // We ignore 'processing' or 'pending' for these stats
-  const processedProfiles = allProfiles.filter(
+  const rawProfiles = profiles as NyneProfile[]
+  // In Dashboard Nyne, we ONLY want to see profiles that are 'completed' or 'failed'.
+  // We ignore 'processing', 'in_queue' or 'not_resolved_yet'.
+  const allProfiles = rawProfiles.filter(
     (p) => p.status === 'completed' || p.status === 'failed'
   )
+  const processedProfiles = allProfiles
   const totalProcessedBase = processedProfiles.length || 1 // Avoid divide by zero
 
   // --- GLOBAL METRICS (Top Cards) ---
