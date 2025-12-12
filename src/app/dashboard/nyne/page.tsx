@@ -408,11 +408,9 @@ export default async function DashboardNynePage() {
 
       {/* All profiles in network */}
       <div className="space-y-4">
-        <div className="text-sm text-muted-foreground italic">
-          * Displaying the latest 1000 profiles for performance. Global metrics (top cards) are calculated on the full dataset.
-        </div>
+        {/* Removed limit disclaimer */}
         <NyneProfilesTable
-          profiles={allProfiles.slice(0, 1000).map((p) => {
+          profiles={allProfiles.map((p) => {
             const owner = profileOwnerMap.get(p.profile_id)
             return {
               ...p,

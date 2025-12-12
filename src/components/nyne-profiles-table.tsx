@@ -206,6 +206,7 @@ export function NyneProfilesTable({ profiles }: Props) {
   const [createdFilter, setCreatedFilter] = useState<CreatedFilter>('all')
 
   const [procSort, setProcSort] = useState<'none' | 'asc' | 'desc'>('none')
+  const [displayLimit, setDisplayLimit] = useState(50)
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim()
@@ -311,15 +312,24 @@ export function NyneProfilesTable({ profiles }: Props) {
   ])
 
   const visibleProfiles = useMemo(() => {
-    if (procSort === 'none') return filtered
-    const sorted = [...filtered]
-    sorted.sort((a, b) => {
-      const av = a.processing_seconds ?? (procSort === 'asc' ? Infinity : -1)
-      const bv = b.processing_seconds ?? (procSort === 'asc' ? Infinity : -1)
-      return procSort === 'asc' ? av - bv : bv - av
-    })
-    return sorted
+    let res = filtered
+    if (procSort !== 'none') {
+      res = [...filtered].sort((a, b) => {
+        const av = a.processing_seconds ?? (procSort === 'asc' ? Infinity : -1)
+        const bv = b.processing_seconds ?? (procSort === 'asc' ? Infinity : -1)
+        return procSort === 'asc' ? av - bv : bv - av
+      })
+    }
+    return res
   }, [filtered, procSort])
+
+  const renderedProfiles = useMemo(() => {
+    return visibleProfiles.slice(0, displayLimit)
+  }, [visibleProfiles, displayLimit])
+
+  const handleShowMore = () => {
+    setDisplayLimit((prev) => prev + 50)
+  }
 
   const handleExport = () => {
     // Align CSV with visible table columns
@@ -417,7 +427,7 @@ export function NyneProfilesTable({ profiles }: Props) {
         <div>
           <h3 className="text-sm font-semibold">All profiles in network</h3>
           <p className="text-xs text-muted-foreground">
-            {filtered.length} profiles • filter and export like in Supabase
+            {filtered.length} profiles found (showing {renderedProfiles.length})
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -623,7 +633,7 @@ export function NyneProfilesTable({ profiles }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleProfiles.map((p) => (
+            {renderedProfiles.map((p) => (
               <TableRow key={p.profile_id}>
                 <TableCell>
                   <div className="flex items-between gap-3">
@@ -719,8 +729,17 @@ export function NyneProfilesTable({ profiles }: Props) {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={14} className="py-8 text-center text-sm text-muted-foreground">
                   No profiles match your filters.
+                </TableCell>
+              </TableRow>
+            )}
+            {visibleProfiles.length > displayLimit && (
+              <TableRow>
+                <TableCell colSpan={14} className="py-4 text-center">
+                  <Button variant="outline" size="sm" onClick={handleShowMore}>
+                    Show more ({visibleProfiles.length - displayLimit} remaining)
+                  </Button>
                 </TableCell>
               </TableRow>
             )}
