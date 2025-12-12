@@ -42,7 +42,8 @@ function isMissingCity(city: string | null) {
 }
 
 function isPartiallyResolved(p: NyneProfile) {
-  // Partially_resolved: we have a LinkedIn, but at least one required field is missing
+  // Partially_resolved: status completed + linkedin + missing fields
+  if (p.status !== 'completed') return false
   if (!p.linkedin_url) return false
   const missingRequired =
     !p.profile_pic ||
@@ -59,7 +60,8 @@ function isPartiallyResolved(p: NyneProfile) {
 }
 
 function isFullyResolved(p: NyneProfile) {
-  // Fully_resolved: we have a LinkedIn and all required fields are present
+  // Fully_resolved: status completed + linkedin + all fields
+  if (p.status !== 'completed') return false
   if (!p.linkedin_url) return false
   return (
     !!p.profile_pic &&
@@ -75,13 +77,16 @@ function isFullyResolved(p: NyneProfile) {
   )
 }
 
+function isFailed(p: NyneProfile) {
+  return p.status === 'failed'
+}
+
 export function OpsResolveClient({ user, profiles }: Props) {
   const orderedProfiles = useMemo(() => {
     const partial = profiles.filter(isPartiallyResolved)
-    const full = profiles.filter(
-      (p) => isFullyResolved(p) && !isPartiallyResolved(p)
-    )
-    const failed = profiles.filter((p) => !p.linkedin_url)
+    const full = profiles.filter(isFullyResolved)
+    const failed = profiles.filter(isFailed)
+    // Prioritize: Partial -> Full -> Failed
     return [...partial, ...full, ...failed]
   }, [profiles])
 
@@ -116,15 +121,13 @@ export function OpsResolveClient({ user, profiles }: Props) {
 
   const category: 'partial' | 'full' | 'failed' = isPartiallyResolved(current)
     ? 'partial'
-    : !current.linkedin_url
+    : isFailed(current)
     ? 'failed'
     : 'full'
 
   const totalPartial = orderedProfiles.filter(isPartiallyResolved).length
-  const totalFull = orderedProfiles.filter(
-    (p) => isFullyResolved(p) && !isPartiallyResolved(p)
-  ).length
-  const totalFailed = orderedProfiles.filter((p) => !p.linkedin_url).length
+  const totalFull = orderedProfiles.filter(isFullyResolved).length
+  const totalFailed = orderedProfiles.filter(isFailed).length
 
   const resetForNext = (nextIndex: number) => {
     setIndex(nextIndex)
