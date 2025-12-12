@@ -54,19 +54,20 @@ export default async function OpsResolvePage({
     return <OpsResolveClient user={user} profiles={[]} />
   }
 
-  // 3) Fetch only this user's profiles, and only the columns needed by OpsResolveClient
+  // 3) Fetch ALL completed/failed profiles from the DB to avoid URL length issues with large networks (e.g. 26k IDs)
+  // We will filter by the user's specific network IDs in memory.
   const { data: profilesData } = await supabase
     .from('nyne_profiles_enrichment')
     .select(
       'profile_id, email, status, firstname, lastname, city, linkedin_url, bio, profile_pic, job_title, company, schools_attended, organizations, social_profiles'
     )
-    .in('profile_id', profileIds)
+    .in('status', ['completed', 'failed'])
 
   const rawProfiles = (profilesData || []) as NyneProfile[]
-  // Filter in JS to match exactly the main dashboard logic (case sensitive, etc.)
-  const userProfiles = rawProfiles.filter(
-    (p) => p.status === 'completed' || p.status === 'failed'
-  )
+  const userProfileIds = new Set(profileIds)
+
+  // Filter in JS to keep only profiles in this user's network
+  const userProfiles = rawProfiles.filter((p) => userProfileIds.has(p.profile_id))
 
   return <OpsResolveClient user={user} profiles={userProfiles} />
 }
