@@ -31,21 +31,22 @@ export default async function DashboardNynePage() {
 
   // 1. Fetch profiles for metrics
   // Optimized select to reduce payload size from DB to Server
+  // We strictly fetch only 'completed' or 'failed' profiles to avoid fetching thousands of 'not_resolved_yet'
+  // and we increase the range to ensure we get all of them (Supabase defaults to 1000).
   const { data: profiles, error: profilesError } = await supabase
     .from('nyne_profiles_enrichment')
     .select(
       'profile_id, email, status, linkedin_url, firstname, lastname, city, job_title, company, bio, profile_pic, schools_attended, organizations, social_profiles, processing_seconds, batch_tag, created_on'
     )
+    .in('status', ['completed', 'failed'])
     .order('created_on', { ascending: false })
+    .range(0, 49999)
 
   if (profilesError) return <div>Error loading profiles: {profilesError.message}</div>
 
   const rawProfiles = profiles as NyneProfile[]
-  // In Dashboard Nyne, we ONLY want to see profiles that are 'completed' or 'failed'.
-  // We ignore 'processing', 'in_queue' or 'not_resolved_yet'.
-  const allProfiles = rawProfiles.filter(
-    (p) => p.status === 'completed' || p.status === 'failed'
-  )
+  // We already filtered by status in the query, but keeping this assignment for clarity
+  const allProfiles = rawProfiles
   const processedProfiles = allProfiles
   const totalProcessedBase = processedProfiles.length || 1 // Avoid divide by zero
 

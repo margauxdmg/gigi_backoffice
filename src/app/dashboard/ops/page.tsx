@@ -32,9 +32,14 @@ export default async function OpsDashboardPage() {
   const supabase = createClient()
   
   // 1. Fetch all enriched profiles
+  // Optimized: select only needed columns, filter by status, and increase range limit
   const { data: profiles, error: profilesError } = await supabase
     .from('nyne_profiles_enrichment')
-    .select('*')
+    .select(
+      'profile_id, email, status, linkedin_url, firstname, lastname, city, job_title, company, bio, profile_pic, schools_attended, organizations, social_profiles'
+    )
+    .in('status', ['completed', 'failed'])
+    .range(0, 49999)
 
   if (profilesError) {
     return <div>Error loading profiles: {profilesError.message}</div>
@@ -42,10 +47,8 @@ export default async function OpsDashboardPage() {
 
   const allProfiles = (profiles || []) as NyneProfile[]
 
-  // Consider only profiles that are DONE (completed or failed)
-  const processedProfiles = allProfiles.filter(
-    (p) => p.status === 'completed' || p.status === 'failed'
-  )
+  // Already filtered by status in query
+  const processedProfiles = allProfiles
 
   function isMissingCity(city: string | null) {
     if (!city) return true
@@ -100,11 +103,12 @@ export default async function OpsDashboardPage() {
   const totalToProceed = partiallyResolvedToDo + notResolved
 
   // 2. Fetch users, connections and admin actions
-  const { data: usersData } = await supabase.from('users').select('*')
-  const { data: connectionsData } = await supabase.from('connections').select('*')
+  const { data: usersData } = await supabase.from('users').select('*').range(0, 49999)
+  const { data: connectionsData } = await supabase.from('connections').select('*').range(0, 49999)
   const { data: actionsData } = await supabase
     .from('admin_action_logs')
     .select('profile_id')
+    .range(0, 49999)
 
   const users = (usersData || []) as User[]
   const connections = (connectionsData || []) as Connection[]
